@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Form Izin / Sakit - SMPN 20 KONAWE SELATAN</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+  <header class="header">
+    <img src="logo.png" alt="Logo Sekolah" class="logo">
+    <div class="school-info">
+      <h2>SMPN 20 KONAWE SELATAN</h2>
+      <h3>Form Izin / Sakit</h3>
+    </div>
+  </header>
+
+  <form id="izinForm" class="form-card">
+    <label for="nis">Nama Siswa</label>
+    <select id="nis" required>
+      <option value="">-- Pilih Nama --</option>
+    </select>
+
+    <label for="nama">Nama</label>
+    <input type="text" id="nama" readonly>
+
+    <label for="kelas">Kelas</label>
+    <input type="text" id="kelas" readonly>
+
+    <label for="tanggal">Tanggal</label>
+    <input type="date" id="tanggal" required>
+
+    <label for="jenis">Jenis</label>
+    <select id="jenis" required>
+      <option value="">-- Pilih Jenis --</option>
+      <option value="Izin">Izin</option>
+      <option value="Sakit">Sakit</option>
+      <option value="Lainnya">Lainnya</option>
+    </select>
+
+    <label for="keterangan">Keterangan</label>
+    <textarea id="keterangan" rows="3" required></textarea>
+
+    <button type="submit">Kirim</button>
+  </form>
+
+  <p id="status"></p>
+</div>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>
