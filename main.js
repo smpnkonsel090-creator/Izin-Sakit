@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
 import { 
-  getFirestore, collection, getDocs, doc, setDoc, query, orderBy, Timestamp 
+  getFirestore, collection, getDocs, doc, setDoc, getDoc, query, orderBy, Timestamp 
 } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 import { firebaseConfig } from "./config.js";
 
@@ -73,6 +73,17 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
     return;
   }
 
+  // === BATAS WAKTU PENGIRIMAN ===
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+  const cutoffHour = 10; // jam 10 pagi
+
+  if (tanggal === todayStr && now.getHours() >= cutoffHour) {
+    statusP.textContent = "❌ Batas waktu pengiriman izin hari ini telah lewat! Silakan pilih tanggal lain.";
+    statusP.style.color = "red";
+    return;
+  }
+
   const dataSiswa = { nama, nis, kelas, jenis, keterangan, tanggal, timestamp: Timestamp.now() };
 
   try {
@@ -82,11 +93,10 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
 
     // === Update absensi/{tanggal} dengan logika aman ===
     const absensiRef = doc(db, "absensi", tanggal);
-    const absensiSnap = await getDocs(collection(db, "absensi")); // untuk membaca data absensi sebelumnya
     const absensiDoc = await getDoc(absensiRef);
     const existingData = absensiDoc.exists() ? absensiDoc.data() : {};
 
-    const absensiHariIni = (existingData[nis]) ? { ...existingData[nis] } : {};
+    const absensiHariIni = existingData[nis] ? { ...existingData[nis] } : {};
 
     // Update status & keterangan
     absensiHariIni.status = jenis;
@@ -121,4 +131,3 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
 
 // Panggil pertama kali
 loadSiswa();
-
