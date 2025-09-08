@@ -80,19 +80,26 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
     const docRef = doc(db, "Izin_Sakit", tanggal);
     await setDoc(docRef, { [nis]: dataSiswa }, { merge: true });
 
-    // === Sekaligus update absensi/{tanggal} ===
+    // === Update absensi/{tanggal} dengan logika aman ===
     const absensiRef = doc(db, "absensi", tanggal);
-    const absensiData = {
-      [nis]: {
-        nis,
-        nama,
-        kelas,
-        status: jenis,
-        keterangan,
-        jamDatang: Timestamp.now(),
-        jamPulang: Timestamp.now()
-      }
-    };
+    const absensiSnap = await getDocs(collection(db, "absensi")); // untuk membaca data absensi sebelumnya
+    const absensiDoc = await getDoc(absensiRef);
+    const existingData = absensiDoc.exists() ? absensiDoc.data() : {};
+
+    const absensiHariIni = (existingData[nis]) ? { ...existingData[nis] } : {};
+
+    // Update status & keterangan
+    absensiHariIni.status = jenis;
+    absensiHariIni.keterangan = keterangan;
+    absensiHariIni.nama = nama;
+    absensiHariIni.nis = nis;
+    absensiHariIni.kelas = kelas;
+
+    // Jika jamDatang/jamPulang masih null atau undefined, set Timestamp.now()
+    if (!absensiHariIni.jamDatang) absensiHariIni.jamDatang = Timestamp.now();
+    if (!absensiHariIni.jamPulang) absensiHariIni.jamPulang = Timestamp.now();
+
+    const absensiData = { [nis]: absensiHariIni };
     await setDoc(absensiRef, absensiData, { merge: true });
 
     statusP.textContent = "✅ Izin/Sakit berhasil dicatat & absensi diperbarui";
@@ -114,3 +121,4 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
 
 // Panggil pertama kali
 loadSiswa();
+
