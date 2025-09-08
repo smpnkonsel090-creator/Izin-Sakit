@@ -1,5 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, setDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
+import { 
+  getFirestore, collection, getDocs, doc, setDoc, query, orderBy, Timestamp 
+} from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 import { firebaseConfig } from "./config.js";
 
 // Initialize Firebase
@@ -19,7 +21,7 @@ let siswaMap = {};
 const today = new Date().toISOString().split('T')[0];
 tanggalInput.value = today;
 
-// Load siswa from Firestore
+// Load siswa dari Firestore
 async function loadSiswa() {
   const q = query(collection(db, "siswa"), orderBy("nama"));
   const snapshot = await getDocs(q);
@@ -27,8 +29,8 @@ async function loadSiswa() {
   nisSelect.innerHTML = '<option value="">-- Pilih Nama --</option>';
   siswaMap = {};
 
-  snapshot.forEach(doc => {
-    const data = doc.data();
+  snapshot.forEach(docSnap => {
+    const data = docSnap.data();
     const nama = data.nama || "";
     const nis = data.nis || "";
     const kelas = data.kelas || "-";
@@ -54,6 +56,7 @@ nisSelect.addEventListener("change", () => {
   }
 });
 
+// Submit form izin/sakit
 document.getElementById("izinForm").addEventListener("submit", async (e) => {
   e.preventDefault();
 
@@ -70,15 +73,32 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
     return;
   }
 
-  const dataSiswa = { nama, nis, kelas, jenis, keterangan, tanggal, timestamp: new Date() };
+  const dataSiswa = { nama, nis, kelas, jenis, keterangan, tanggal, timestamp: Timestamp.now() };
 
   try {
+    // Simpan ke Izin_Sakit/{tanggal}
     const docRef = doc(db, "Izin_Sakit", tanggal);
     await setDoc(docRef, { [nis]: dataSiswa }, { merge: true });
 
-    statusP.textContent = "Data izin berhasil dikirim ✅";
+    // === Sekaligus update absensi/{tanggal} ===
+    const absensiRef = doc(db, "absensi", tanggal);
+    const absensiData = {
+      [nis]: {
+        nis,
+        nama,
+        kelas,
+        status: jenis,
+        keterangan,
+        jamDatang: Timestamp.now(),
+        jamPulang: Timestamp.now()
+      }
+    };
+    await setDoc(absensiRef, absensiData, { merge: true });
+
+    statusP.textContent = "✅ Izin/Sakit berhasil dicatat & absensi diperbarui";
     statusP.style.color = "green";
 
+    // Reset form
     nisSelect.value = "";
     namaInput.value = "";
     kelasInput.value = "";
@@ -87,9 +107,10 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
     tanggalInput.value = today;
 
   } catch (err) {
-    statusP.textContent = `Gagal mengirim data: ${err.message}`;
+    statusP.textContent = `❌ Gagal mengirim data: ${err.message}`;
     statusP.style.color = "red";
   }
 });
 
+// Panggil pertama kali
 loadSiswa();
