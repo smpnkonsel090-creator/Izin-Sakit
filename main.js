@@ -16,15 +16,23 @@ const tanggalInput = document.getElementById("tanggal");
 const jenisSelect = document.getElementById("jenis");
 const keteranganInput = document.getElementById("keterangan");
 const statusP = document.getElementById("status");
+const submitBtn = document.getElementById("submitBtn");
 
 let siswaMap = {};
-const today = new Date().toISOString().split('T')[0];
 
-// Set default tanggal & batasi tanggal minimal
-tanggalInput.value = today;
-tanggalInput.min = today; // mencegah pilih tanggal lewat
+// ================= Helper WITA =================
+function nowWITA() {
+    const nowUTC = new Date();
+    const witaOffset = 8 * 60; // WITA = UTC+8
+    return new Date(nowUTC.getTime() + witaOffset * 60000);
+}
 
-// Load siswa dari Firestore
+// ================= Set default tanggal =================
+const todayWITA = nowWITA().toISOString().split('T')[0];
+tanggalInput.value = todayWITA;
+tanggalInput.min = todayWITA;
+
+// ================= Load siswa dari Firestore =================
 async function loadSiswa() {
   const q = query(collection(db, "siswa"), orderBy("nama"));
   const snapshot = await getDocs(q);
@@ -48,6 +56,7 @@ async function loadSiswa() {
   });
 }
 
+// ================= Update nama & kelas saat pilih siswa =================
 nisSelect.addEventListener("change", () => {
   const selected = nisSelect.value;
   if (selected && siswaMap[selected]) {
@@ -59,7 +68,30 @@ nisSelect.addEventListener("change", () => {
   }
 });
 
-// Submit form izin/sakit
+// ================= Cek batas waktu & disable tombol =================
+function cekBatasWaktu() {
+    const now = nowWITA();
+    const todayStr = now.toISOString().split('T')[0];
+    const cutoffHour = 10;
+
+    if (tanggalInput.value < todayStr) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "❌ Tanggal sudah lewat";
+    } else if (tanggalInput.value === todayStr && now.getHours() >= cutoffHour) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "⏰ Batas waktu WITA sudah lewat";
+    } else {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Kirim";
+    }
+}
+
+// Panggil saat load halaman & saat tanggal diubah
+cekBatasWaktu();
+tanggalInput.addEventListener("change", cekBatasWaktu);
+setInterval(cekBatasWaktu, 60000); // update tiap 1 menit
+
+// ================= Submit form izin/sakit =================
 document.getElementById("izinForm").addEventListener("submit", async (e) => {
   e.preventDefault();
 
@@ -76,21 +108,20 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
     return;
   }
 
-  const now = new Date();
+  const now = nowWITA();
   const todayStr = now.toISOString().split('T')[0];
-  const cutoffHour = 10; // jam 10 pagi
-  const selectedDate = new Date(tanggal);
+  const cutoffHour = 10;
 
   // === Batasan: tanggal sudah lewat ===
-  if (selectedDate < new Date(todayStr)) {
-    statusP.textContent = "❌ Tanggal yang dipilih sudah lewat. Silakan pilih tanggal hari ini atau tanggal mendatang.";
+  if (tanggal < todayStr) {
+    statusP.textContent = "❌ Tanggal yang dipilih sudah lewat (WITA).";
     statusP.style.color = "red";
     return;
   }
 
-  // === Batasan: hari ini tapi lewat jam 10 pagi ===
+  // === Batasan: hari ini tapi lewat jam 10 WITA ===
   if (tanggal === todayStr && now.getHours() >= cutoffHour) {
-    statusP.textContent = "❌ Batas waktu pengiriman izin hari ini telah lewat! Silakan pilih tanggal lain.";
+    statusP.textContent = "❌ Batas waktu pengiriman izin/Sakit hari ini telah lewat!";
     statusP.style.color = "red";
     return;
   }
@@ -132,7 +163,9 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
     kelasInput.value = "";
     jenisSelect.value = "";
     keteranganInput.value = "";
-    tanggalInput.value = today;
+    tanggalInput.value = todayWITA;
+
+    cekBatasWaktu();
 
   } catch (err) {
     statusP.textContent = `❌ Gagal mengirim data: ${err.message}`;
