@@ -19,7 +19,10 @@ const statusP = document.getElementById("status");
 
 let siswaMap = {};
 const today = new Date().toISOString().split('T')[0];
+
+// Set default tanggal & batasi tanggal minimal
 tanggalInput.value = today;
+tanggalInput.min = today; // mencegah pilih tanggal lewat
 
 // Load siswa dari Firestore
 async function loadSiswa() {
@@ -73,11 +76,19 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
     return;
   }
 
-  // === BATAS WAKTU PENGIRIMAN ===
   const now = new Date();
   const todayStr = now.toISOString().split('T')[0];
   const cutoffHour = 10; // jam 10 pagi
+  const selectedDate = new Date(tanggal);
 
+  // === Batasan: tanggal sudah lewat ===
+  if (selectedDate < new Date(todayStr)) {
+    statusP.textContent = "❌ Tanggal yang dipilih sudah lewat. Silakan pilih tanggal hari ini atau tanggal mendatang.";
+    statusP.style.color = "red";
+    return;
+  }
+
+  // === Batasan: hari ini tapi lewat jam 10 pagi ===
   if (tanggal === todayStr && now.getHours() >= cutoffHour) {
     statusP.textContent = "❌ Batas waktu pengiriman izin hari ini telah lewat! Silakan pilih tanggal lain.";
     statusP.style.color = "red";
@@ -91,7 +102,7 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
     const docRef = doc(db, "Izin_Sakit", tanggal);
     await setDoc(docRef, { [nis]: dataSiswa }, { merge: true });
 
-    // === Update absensi/{tanggal} dengan logika aman ===
+    // Update absensi/{tanggal} dengan logika aman
     const absensiRef = doc(db, "absensi", tanggal);
     const absensiDoc = await getDoc(absensiRef);
     const existingData = absensiDoc.exists() ? absensiDoc.data() : {};
@@ -105,7 +116,7 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
     absensiHariIni.nis = nis;
     absensiHariIni.kelas = kelas;
 
-    // Jika jamDatang/jamPulang masih null atau undefined, set Timestamp.now()
+    // Jika jamDatang/jamPulang masih null, set Timestamp.now()
     if (!absensiHariIni.jamDatang) absensiHariIni.jamDatang = Timestamp.now();
     if (!absensiHariIni.jamPulang) absensiHariIni.jamPulang = Timestamp.now();
 
