@@ -4,34 +4,24 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 import { firebaseConfig } from "./config.js";
 
-// ================= Init Firebase =================
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// ================= DOM elements =================
-const nisSelect = document.getElementById("nis");    // dropdown pilih siswa
-const namaInput = document.getElementById("nama");   // input readonly nama
-const kelasInput = document.getElementById("kelas"); // input readonly kelas
+// DOM elements
+const nisSelect = document.getElementById("nis");
+const namaInput = document.getElementById("nama");
+const kelasInput = document.getElementById("kelas");
 const tanggalInput = document.getElementById("tanggal");
 const jenisSelect = document.getElementById("jenis");
 const keteranganInput = document.getElementById("keterangan");
 const statusP = document.getElementById("status");
 
-let siswaMap = {}; // key = nis → { nama, kelas }
+let siswaMap = {};
+const today = new Date().toISOString().split('T')[0];
+tanggalInput.value = today;
 
-// ================= Helper WITA =================
-function nowWITA() {
-  const nowUTC = new Date();
-  const witaOffset = 8 * 60; // UTC+8
-  return new Date(nowUTC.getTime() + witaOffset * 60000);
-}
-
-// ================= Set default tanggal =================
-const todayWITA = nowWITA().toISOString().split("T")[0];
-tanggalInput.value = todayWITA;
-tanggalInput.min = todayWITA;
-
-// ================= Load siswa =================
+// Load siswa dari Firestore
 async function loadSiswa() {
   const q = query(collection(db, "siswa"), orderBy("nama"));
   const snapshot = await getDocs(q);
@@ -39,41 +29,40 @@ async function loadSiswa() {
   nisSelect.innerHTML = '<option value="">-- Pilih Nama --</option>';
   siswaMap = {};
 
-  snapshot.forEach((docSnap) => {
+  snapshot.forEach(docSnap => {
     const data = docSnap.data();
     const nama = data.nama || "";
     const nis = data.nis || "";
     const kelas = data.kelas || "-";
 
-    if (nama && nis) {
-      siswaMap[nis] = { nama, kelas };
+    if (nama) {
+      siswaMap[nama] = { nis, kelas };
       const option = document.createElement("option");
-      option.value = nis;          // pakai NIS sebagai value unik
-      option.textContent = nama;   // tampilkan nama di dropdown
+      option.value = nama;
+      option.textContent = nama;
       nisSelect.appendChild(option);
     }
   });
 }
 
-// ================= Update Nama & Kelas saat pilih siswa =================
 nisSelect.addEventListener("change", () => {
-  const nis = nisSelect.value;
-  if (nis && siswaMap[nis]) {
-    namaInput.value = siswaMap[nis].nama;
-    kelasInput.value = siswaMap[nis].kelas;
+  const selected = nisSelect.value;
+  if (selected && siswaMap[selected]) {
+    namaInput.value = selected;
+    kelasInput.value = siswaMap[selected].kelas;
   } else {
     namaInput.value = "";
     kelasInput.value = "";
   }
 });
 
-// ================= Submit =================
+// Submit form izin/sakit
 document.getElementById("izinForm").addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const nis = nisSelect.value.trim();
-  const nama = siswaMap[nis]?.nama || "";
-  const kelas = siswaMap[nis]?.kelas || "";
+  const nama = namaInput.value.trim();
+  const nis = siswaMap[nama]?.nis || "";
+  const kelas = kelasInput.value.trim();
   const tanggal = tanggalInput.value.trim();
   const jenis = jenisSelect.value.trim();
   const keterangan = keteranganInput.value.trim();
@@ -84,47 +73,44 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
     return;
   }
 
-  // ===== Validasi tanggal & jam (sama dengan Android) =====
-  const now = nowWITA();
-  const todayStr = now.toISOString().split("T")[0];
-  const cutoffHour = 10;
+  // === BATAS WAKTU PENGIRIMAN ===
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+  const cutoffHour = 10; // jam 10 pagi
 
-  if (tanggal < todayStr) {
-    statusP.textContent = "❌ Tanggal yang dipilih sudah lewat. Pilih hari ini atau mendatang.";
-    statusP.style.color = "red";
-    return;
-  }
   if (tanggal === todayStr && now.getHours() >= cutoffHour) {
-    statusP.textContent = "❌ Batas waktu pengiriman izin hari ini sudah lewat!";
+    statusP.textContent = "❌ Batas waktu pengiriman izin hari ini telah lewat! Silakan pilih tanggal lain.";
     statusP.style.color = "red";
     return;
   }
 
-  // ===== Data yang disimpan =====
   const dataSiswa = { nama, nis, kelas, jenis, keterangan, tanggal, timestamp: Timestamp.now() };
 
   try {
     // Simpan ke Izin_Sakit/{tanggal}
-    const izinRef = doc(db, "Izin_Sakit", tanggal);
-    await setDoc(izinRef, { [nis]: dataSiswa }, { merge: true });
+    const docRef = doc(db, "Izin_Sakit", tanggal);
+    await setDoc(docRef, { [nis]: dataSiswa }, { merge: true });
 
-    // Update absensi/{tanggal}
+    // === Update absensi/{tanggal} dengan logika aman ===
     const absensiRef = doc(db, "absensi", tanggal);
     const absensiDoc = await getDoc(absensiRef);
     const existingData = absensiDoc.exists() ? absensiDoc.data() : {};
 
     const absensiHariIni = existingData[nis] ? { ...existingData[nis] } : {};
 
+    // Update status & keterangan
     absensiHariIni.status = jenis;
     absensiHariIni.keterangan = keterangan;
     absensiHariIni.nama = nama;
     absensiHariIni.nis = nis;
     absensiHariIni.kelas = kelas;
 
+    // Jika jamDatang/jamPulang masih null atau undefined, set Timestamp.now()
     if (!absensiHariIni.jamDatang) absensiHariIni.jamDatang = Timestamp.now();
     if (!absensiHariIni.jamPulang) absensiHariIni.jamPulang = Timestamp.now();
 
-    await setDoc(absensiRef, { [nis]: absensiHariIni }, { merge: true });
+    const absensiData = { [nis]: absensiHariIni };
+    await setDoc(absensiRef, absensiData, { merge: true });
 
     statusP.textContent = "✅ Izin/Sakit berhasil dicatat & absensi diperbarui";
     statusP.style.color = "green";
@@ -135,13 +121,14 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
     kelasInput.value = "";
     jenisSelect.value = "";
     keteranganInput.value = "";
-    tanggalInput.value = todayWITA;
+    tanggalInput.value = today;
 
   } catch (err) {
-    statusP.textContent = `❌ Gagal menyimpan: ${err.message}`;
+    statusP.textContent = `❌ Gagal mengirim data: ${err.message}`;
     statusP.style.color = "red";
   }
 });
 
-// ================= Panggil pertama kali =================
+// Panggil pertama kali
 loadSiswa();
+ cekapakah ada batasan untuk kirim pada tanggal ini
