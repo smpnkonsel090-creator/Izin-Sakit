@@ -9,16 +9,15 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ================= DOM elements =================
-const namaSelect = document.getElementById("nama"); // dropdown pilih nama
-const nisInput = document.getElementById("nis");
-const kelasInput = document.getElementById("kelas");
+const nisSelect = document.getElementById("nis");    // dropdown pilih siswa
+const namaInput = document.getElementById("nama");   // input readonly nama
+const kelasInput = document.getElementById("kelas"); // input readonly kelas
 const tanggalInput = document.getElementById("tanggal");
 const jenisSelect = document.getElementById("jenis");
 const keteranganInput = document.getElementById("keterangan");
 const statusP = document.getElementById("status");
-const submitBtn = document.getElementById("submitBtn");
 
-let siswaMap = {}; // key = nama → { nis, kelas }
+let siswaMap = {}; // key = nis → { nama, kelas }
 
 // ================= Helper WITA =================
 function nowWITA() {
@@ -37,7 +36,7 @@ async function loadSiswa() {
   const q = query(collection(db, "siswa"), orderBy("nama"));
   const snapshot = await getDocs(q);
 
-  namaSelect.innerHTML = '<option value="">-- Pilih Nama --</option>';
+  nisSelect.innerHTML = '<option value="">-- Pilih Nama --</option>';
   siswaMap = {};
 
   snapshot.forEach((docSnap) => {
@@ -47,23 +46,23 @@ async function loadSiswa() {
     const kelas = data.kelas || "-";
 
     if (nama && nis) {
-      siswaMap[nama] = { nis, kelas };
+      siswaMap[nis] = { nama, kelas };
       const option = document.createElement("option");
-      option.value = nama;        // dropdown = nama
-      option.textContent = nama;
-      namaSelect.appendChild(option);
+      option.value = nis;          // pakai NIS sebagai value unik
+      option.textContent = nama;   // tampilkan nama di dropdown
+      nisSelect.appendChild(option);
     }
   });
 }
 
-// ================= Update NIS & Kelas saat pilih nama =================
-namaSelect.addEventListener("change", () => {
-  const nama = namaSelect.value;
-  if (nama && siswaMap[nama]) {
-    nisInput.value = siswaMap[nama].nis;
-    kelasInput.value = siswaMap[nama].kelas;
+// ================= Update Nama & Kelas saat pilih siswa =================
+nisSelect.addEventListener("change", () => {
+  const nis = nisSelect.value;
+  if (nis && siswaMap[nis]) {
+    namaInput.value = siswaMap[nis].nama;
+    kelasInput.value = siswaMap[nis].kelas;
   } else {
-    nisInput.value = "";
+    namaInput.value = "";
     kelasInput.value = "";
   }
 });
@@ -72,9 +71,9 @@ namaSelect.addEventListener("change", () => {
 document.getElementById("izinForm").addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const nama = namaSelect.value.trim();
-  const nis = siswaMap[nama]?.nis || "";
-  const kelas = siswaMap[nama]?.kelas || "";
+  const nis = nisSelect.value.trim();
+  const nama = siswaMap[nis]?.nama || "";
+  const kelas = siswaMap[nis]?.kelas || "";
   const tanggal = tanggalInput.value.trim();
   const jenis = jenisSelect.value.trim();
   const keterangan = keteranganInput.value.trim();
@@ -131,8 +130,8 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
     statusP.style.color = "green";
 
     // Reset form
-    namaSelect.value = "";
-    nisInput.value = "";
+    nisSelect.value = "";
+    namaInput.value = "";
     kelasInput.value = "";
     jenisSelect.value = "";
     keteranganInput.value = "";
