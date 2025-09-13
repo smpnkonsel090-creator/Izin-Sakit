@@ -9,8 +9,8 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // DOM elements
-const nisSelect = document.getElementById("nis");
-const namaInput = document.getElementById("nama");
+const nisSelect = document.getElementById("nis"); // tetap sebagai data source
+const namaInput = document.getElementById("nama"); // input untuk ketik nama
 const kelasInput = document.getElementById("kelas");
 const tanggalInput = document.getElementById("tanggal");
 const jenisSelect = document.getElementById("jenis");
@@ -26,7 +26,7 @@ async function loadSiswa() {
   const q = query(collection(db, "siswa"), orderBy("nama"));
   const snapshot = await getDocs(q);
 
-  nisSelect.innerHTML = '<option value="">-- Pilih Nama --</option>';
+  nisSelect.innerHTML = '';
   siswaMap = {};
 
   snapshot.forEach(docSnap => {
@@ -36,7 +36,7 @@ async function loadSiswa() {
     const kelas = (data.kelas || "-").trim();
 
     if (nama) {
-      siswaMap[nama.toLowerCase()] = { nis, kelas };
+      siswaMap[nama.toLowerCase()] = { nis, kelas, namaAsli: nama };
       const option = document.createElement("option");
       option.value = nama.toLowerCase();
       option.textContent = nama;
@@ -46,11 +46,63 @@ async function loadSiswa() {
   console.log("Siswa loaded:", siswaMap);
 }
 
-// Pilih nama
+// AutoComplete logic
+namaInput.addEventListener("input", () => {
+  const input = namaInput.value.toLowerCase();
+  const options = Array.from(nisSelect.options);
+  
+  // filter option
+  const filtered = options.filter(opt => opt.value.includes(input));
+
+  // buat dropdown sementara
+  let dropdown = filtered.map(opt => opt.textContent);
+  
+  // tampilkan saran (dropdown HTML sederhana)
+  showSuggestions(dropdown);
+});
+
+function showSuggestions(list) {
+  let dataList = document.getElementById("suggestions");
+  if (!dataList) {
+    dataList = document.createElement("div");
+    dataList.id = "suggestions";
+    dataList.style.border = "1px solid #ccc";
+    dataList.style.position = "absolute";
+    dataList.style.background = "white";
+    dataList.style.zIndex = 1000;
+    dataList.style.maxHeight = "150px";
+    dataList.style.overflowY = "auto";
+    namaInput.parentNode.appendChild(dataList);
+  }
+  dataList.innerHTML = "";
+
+  list.forEach(name => {
+    const div = document.createElement("div");
+    div.textContent = name;
+    div.style.padding = "5px";
+    div.style.cursor = "pointer";
+    div.addEventListener("click", () => {
+      namaInput.value = name;
+      kelasInput.value = siswaMap[name.toLowerCase()].kelas;
+      dataList.innerHTML = "";
+    });
+    dataList.appendChild(div);
+  });
+}
+
+// Hide suggestions ketika klik di luar
+document.addEventListener("click", (e) => {
+  if (e.target !== namaInput) {
+    const dataList = document.getElementById("suggestions");
+    if (dataList) dataList.innerHTML = "";
+  }
+});
+
+// Pilih nama via dropdown select juga (backup)
 nisSelect.addEventListener("change", () => {
   const selected = nisSelect.value.toLowerCase();
   if (selected && siswaMap[selected]) {
-    namaInput.value = Object.keys(siswaMap).find(k => k === selected);
+    namaInput.value = siswaMap[selected].namaAsli;
     kelasInput.value = siswaMap[selected].kelas;
   } else {
     namaInput.value = "";
@@ -58,10 +110,9 @@ nisSelect.addEventListener("change", () => {
   }
 });
 
-// Submit form
+// Form submit (tidak berubah)
 document.getElementById("izinForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-
   const nama = namaInput.value.trim();
   const nis = siswaMap[nama.toLowerCase()]?.nis || "";
   const kelas = kelasInput.value.trim();
@@ -78,7 +129,6 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
   const now = new Date();
   const todayStr = now.toISOString().split('T')[0];
   const cutoffHour = 10;
-
   if (tanggal === todayStr && now.getHours() >= cutoffHour) {
     statusP.textContent = "❌ Batas waktu pengiriman izin hari ini telah lewat!";
     statusP.style.color = "red";
