@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Form Izin / Sakit - SMPN 20 KONAWE SELATAN</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Form Izin / Sakit - SMPN 20 KONAWE SELATAN</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -18,12 +18,13 @@
   </header>
 
   <form id="izinForm" class="form-card">
-    <label for="nama">Nama Siswa</label>
-    <input type="text" id="nama" placeholder="Ketik nama siswa..." autocomplete="off">
-    <ul id="namaList" class="autocomplete-list"></ul>
+    <label for="nis">Nama Siswa</label>
+    <select id="nis" required>
+      <option value="">-- Pilih Nama --</option>
+    </select>
 
-    <label for="nis">NIS</label>
-    <input type="text" id="nis" readonly>
+    <label for="nama">Nama</label>
+    <input type="text" id="nama" readonly>
 
     <label for="kelas">Kelas</label>
     <input type="text" id="kelas" readonly>
