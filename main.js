@@ -4,7 +4,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 import { firebaseConfig } from "./config.js";
 
-// Initialize Firebase
+// Firebase init
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
@@ -21,7 +21,7 @@ let siswaMap = {};
 const today = new Date().toISOString().split('T')[0];
 tanggalInput.value = today;
 
-// Load siswa dari Firestore
+// Load siswa
 async function loadSiswa() {
   const q = query(collection(db, "siswa"), orderBy("nama"));
   const snapshot = await getDocs(q);
@@ -31,24 +31,27 @@ async function loadSiswa() {
 
   snapshot.forEach(docSnap => {
     const data = docSnap.data();
-    const nama = data.nama || "";
-    const nis = data.nis || "";
-    const kelas = data.kelas || "-";
+    const nama = (data.nama || "").trim();
+    const nis = (data.nis || "").trim();
+    const kelas = (data.kelas || "-").trim();
 
     if (nama) {
-      siswaMap[nama] = { nis, kelas };
+      siswaMap[nama.toLowerCase()] = { nis, kelas };
       const option = document.createElement("option");
-      option.value = nama;
+      option.value = nama.toLowerCase();
       option.textContent = nama;
       nisSelect.appendChild(option);
     }
   });
+
+  console.log("Siswa loaded:", siswaMap);
 }
 
+// Pilih nama
 nisSelect.addEventListener("change", () => {
-  const selected = nisSelect.value;
+  const selected = nisSelect.value.toLowerCase();
   if (selected && siswaMap[selected]) {
-    namaInput.value = selected;
+    namaInput.value = Object.keys(siswaMap).find(k => k === selected);
     kelasInput.value = siswaMap[selected].kelas;
   } else {
     namaInput.value = "";
@@ -56,12 +59,12 @@ nisSelect.addEventListener("change", () => {
   }
 });
 
-// Submit form izin/sakit
+// Submit
 document.getElementById("izinForm").addEventListener("submit", async (e) => {
   e.preventDefault();
 
   const nama = namaInput.value.trim();
-  const nis = siswaMap[nama]?.nis || "";
+  const nis = siswaMap[nama.toLowerCase()]?.nis || "";
   const kelas = kelasInput.value.trim();
   const tanggal = tanggalInput.value.trim();
   const jenis = jenisSelect.value.trim();
@@ -73,13 +76,12 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
     return;
   }
 
-  // === BATAS WAKTU PENGIRIMAN ===
   const now = new Date();
   const todayStr = now.toISOString().split('T')[0];
-  const cutoffHour = 10; // jam 10 pagi
+  const cutoffHour = 10;
 
   if (tanggal === todayStr && now.getHours() >= cutoffHour) {
-    statusP.textContent = "❌ Batas waktu pengiriman izin hari ini telah lewat! Silakan pilih tanggal lain.";
+    statusP.textContent = "❌ Batas waktu pengiriman izin hari ini telah lewat!";
     statusP.style.color = "red";
     return;
   }
@@ -87,35 +89,28 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
   const dataSiswa = { nama, nis, kelas, jenis, keterangan, tanggal, timestamp: Timestamp.now() };
 
   try {
-    // Simpan ke Izin_Sakit/{tanggal}
     const docRef = doc(db, "Izin_Sakit", tanggal);
     await setDoc(docRef, { [nis]: dataSiswa }, { merge: true });
 
-    // === Update absensi/{tanggal} dengan logika aman ===
     const absensiRef = doc(db, "absensi", tanggal);
     const absensiDoc = await getDoc(absensiRef);
     const existingData = absensiDoc.exists() ? absensiDoc.data() : {};
 
     const absensiHariIni = existingData[nis] ? { ...existingData[nis] } : {};
-
-    // Update status & keterangan
     absensiHariIni.status = jenis;
     absensiHariIni.keterangan = keterangan;
     absensiHariIni.nama = nama;
     absensiHariIni.nis = nis;
     absensiHariIni.kelas = kelas;
 
-    // Jika jamDatang/jamPulang masih null atau undefined, set Timestamp.now()
     if (!absensiHariIni.jamDatang) absensiHariIni.jamDatang = Timestamp.now();
     if (!absensiHariIni.jamPulang) absensiHariIni.jamPulang = Timestamp.now();
 
-    const absensiData = { [nis]: absensiHariIni };
-    await setDoc(absensiRef, absensiData, { merge: true });
+    await setDoc(absensiRef, { [nis]: absensiHariIni }, { merge: true });
 
     statusP.textContent = "✅ Izin/Sakit berhasil dicatat & absensi diperbarui";
     statusP.style.color = "green";
 
-    // Reset form
     nisSelect.value = "";
     namaInput.value = "";
     kelasInput.value = "";
@@ -129,6 +124,4 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
   }
 });
 
-// Panggil pertama kali
 loadSiswa();
- cekapakah ada batasan untuk kirim pada tanggal ini
