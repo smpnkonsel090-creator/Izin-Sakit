@@ -4,24 +4,26 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 import { firebaseConfig } from "./config.js";
 
-// Firebase init
+// ===== Firebase Init =====
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// DOM elements
-const nisSelect = document.getElementById("nis"); // tetap sebagai data source
-const namaInput = document.getElementById("nama"); // input untuk ketik nama
+// ===== DOM Elements =====
+const nisSelect = document.getElementById("nis"); // data source
+const namaInput = document.getElementById("nama"); // input nama siswa
 const kelasInput = document.getElementById("kelas");
 const tanggalInput = document.getElementById("tanggal");
 const jenisSelect = document.getElementById("jenis");
 const keteranganInput = document.getElementById("keterangan");
 const statusP = document.getElementById("status");
 
+// ===== Variables =====
 let siswaMap = {};
 const today = new Date().toISOString().split('T')[0];
 tanggalInput.value = today;
+tanggalInput.setAttribute("min", today); // tidak bisa pilih tanggal lewat
 
-// Load siswa
+// ===== Load Siswa =====
 async function loadSiswa() {
   const q = query(collection(db, "siswa"), orderBy("nama"));
   const snapshot = await getDocs(q);
@@ -46,18 +48,12 @@ async function loadSiswa() {
   console.log("Siswa loaded:", siswaMap);
 }
 
-// AutoComplete logic
+// ===== AutoComplete Nama =====
 namaInput.addEventListener("input", () => {
   const input = namaInput.value.toLowerCase();
   const options = Array.from(nisSelect.options);
-  
-  // filter option
   const filtered = options.filter(opt => opt.value.includes(input));
-
-  // buat dropdown sementara
-  let dropdown = filtered.map(opt => opt.textContent);
-  
-  // tampilkan saran (dropdown HTML sederhana)
+  const dropdown = filtered.map(opt => opt.textContent);
   showSuggestions(dropdown);
 });
 
@@ -90,7 +86,7 @@ function showSuggestions(list) {
   });
 }
 
-// Hide suggestions ketika klik di luar
+// ===== Hide Suggestions Klik Di Luar =====
 document.addEventListener("click", (e) => {
   if (e.target !== namaInput) {
     const dataList = document.getElementById("suggestions");
@@ -98,7 +94,7 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// Pilih nama via dropdown select juga (backup)
+// ===== Pilih Nama Via Dropdown (Backup) =====
 nisSelect.addEventListener("change", () => {
   const selected = nisSelect.value.toLowerCase();
   if (selected && siswaMap[selected]) {
@@ -110,9 +106,10 @@ nisSelect.addEventListener("change", () => {
   }
 });
 
-// Form submit (tidak berubah)
+// ===== Form Submit =====
 document.getElementById("izinForm").addEventListener("submit", async (e) => {
   e.preventDefault();
+
   const nama = namaInput.value.trim();
   const nis = siswaMap[nama.toLowerCase()]?.nis || "";
   const kelas = kelasInput.value.trim();
@@ -120,17 +117,28 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
   const jenis = jenisSelect.value.trim();
   const keterangan = keteranganInput.value.trim();
 
+  // Validasi wajib isi
   if (!nama || !nis || !kelas || !tanggal || !jenis || !keterangan) {
     statusP.textContent = "Semua kolom wajib diisi!";
     statusP.style.color = "red";
     return;
   }
 
+  // ===== Validasi Tanggal & Jam =====
   const now = new Date();
   const todayStr = now.toISOString().split('T')[0];
-  const cutoffHour = 10;
+  const selectedDate = new Date(tanggal + "T00:00:00");
+  const todayDate = new Date(todayStr + "T00:00:00");
+  const cutoffHour = 9; // batas jam 09:00
+
+  if (selectedDate < todayDate) {
+    statusP.textContent = "❌ Tanggal yang dipilih sudah lewat. Silakan pilih hari ini atau tanggal mendatang.";
+    statusP.style.color = "red";
+    return;
+  }
+
   if (tanggal === todayStr && now.getHours() >= cutoffHour) {
-    statusP.textContent = "❌ Batas waktu pengiriman izin hari ini telah lewat!";
+    statusP.textContent = "❌ Batas waktu pengiriman izin hari ini telah lewat! (Sampai jam 09:00)";
     statusP.style.color = "red";
     return;
   }
@@ -138,9 +146,11 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
   const dataSiswa = { nama, nis, kelas, jenis, keterangan, tanggal, timestamp: Timestamp.now() };
 
   try {
+    // Simpan ke Izin_Sakit
     const docRef = doc(db, "Izin_Sakit", tanggal);
     await setDoc(docRef, { [nis]: dataSiswa }, { merge: true });
 
+    // Update absensi
     const absensiRef = doc(db, "absensi", tanggal);
     const absensiDoc = await getDoc(absensiRef);
     const existingData = absensiDoc.exists() ? absensiDoc.data() : {};
@@ -160,6 +170,7 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
     statusP.textContent = "✅ Izin/Sakit berhasil dicatat & absensi diperbarui";
     statusP.style.color = "green";
 
+    // Reset form
     nisSelect.value = "";
     namaInput.value = "";
     kelasInput.value = "";
@@ -173,4 +184,5 @@ document.getElementById("izinForm").addEventListener("submit", async (e) => {
   }
 });
 
+// ===== Load Data Siswa Awal =====
 loadSiswa();
